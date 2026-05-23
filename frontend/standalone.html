@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ADBETS Standalone Simulator</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #07131f;
+        color: #eff7ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #07131f;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: 310px 1fr;
+        min-height: 100vh;
+      }
+
+      aside {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        padding: 24px;
+        background: #0b1724;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1.7rem;
+        letter-spacing: 0;
+      }
+
+      p {
+        margin: 5px 0 0;
+        color: #97abbc;
+        line-height: 1.4;
+      }
+
+      .buttons,
+      .mode {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      button {
+        min-height: 40px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        color: #eff7ff;
+        background: #132436;
+        cursor: pointer;
+      }
+
+      button.active,
+      button.primary {
+        color: #061017;
+        background: #f2b242;
+      }
+
+      button.danger {
+        grid-column: 1 / -1;
+        color: #fff7f9;
+        background: #8c1d3c;
+        border-color: rgba(255, 101, 140, 0.5);
+      }
+
+      label span {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        color: #b9c8d4;
+        font-size: 0.88rem;
+      }
+
+      input {
+        width: 100%;
+        accent-color: #1d8b83;
+      }
+
+      .metric {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .metric span {
+        color: #9db0c0;
+      }
+
+      .statePanel {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .statePanel h2 {
+        margin: 0 0 4px;
+        font-size: 0.9rem;
+        font-weight: 700;
+      }
+
+      .stateRow {
+        display: flex;
+        justify-content: space-between;
+        color: #9db0c0;
+        font-size: 0.84rem;
+      }
+
+      .stateRow strong {
+        color: #eff7ff;
+      }
+
+      .lock {
+        color: #7ee0b8;
+      }
+
+      .search {
+        color: #f2b242;
+      }
+
+      .break {
+        color: #ff7f9f;
+      }
+
+      .flash {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0;
+        background: radial-gradient(circle at var(--rx, 50%) var(--ry, 45%), rgba(255, 79, 123, 0.36), transparent 28%);
+        transition: opacity 180ms ease;
+      }
+
+      .flash.on {
+        opacity: 1;
+      }
+
+      section {
+        padding: 18px;
+      }
+
+      .stage {
+        position: relative;
+        height: calc(100vh - 36px);
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        background: #081323;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        cursor: crosshair;
+      }
+
+      .hint {
+        margin-top: auto;
+        color: #a9bac9;
+        line-height: 1.45;
+      }
+
+      @media (max-width: 840px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+
+        aside {
+          border-right: 0;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stage {
+          height: 68vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <aside>
+        <div>
+          <h1>ADBETS</h1>
+          <p>Standalone phased-array beam focusing demo</p>
+        </div>
+        <div class="buttons">
+          <button id="run" class="primary">Pause</button>
+          <button id="manual">Manual</button>
+          <button id="reset">Reset Scenario</button>
+        </div>
+        <div class="mode">
+          <button id="ideal">Analytical Mode</button>
+          <button id="adaptive" class="active">Feedback Mode</button>
+        </div>
+        <button id="disturbance" class="danger">Inject Disturbance</button>
+        <label>
+          <span>Noise <strong id="noiseValue">0.06</strong></span>
+          <input id="noise" type="range" min="0" max="0.4" step="0.01" value="0.06" />
+        </label>
+        <label>
+          <span>Interference <strong id="interferenceValue">0.20</strong></span>
+          <input id="interference" type="range" min="0" max="1" step="0.01" value="0.2" />
+        </label>
+        <label>
+          <span>Obstacle loss <strong id="obstacleValue">0.55</strong></span>
+          <input id="obstacle" type="range" min="0" max="0.95" step="0.01" value="0.55" />
+        </label>
+        <label>
+          <span>Play speed <strong id="speedValue">1.00x</strong></span>
+          <input id="speed" type="range" min="0.25" max="2.5" step="0.05" value="1" />
+        </label>
+        <div class="metric"><span>Received power</span><strong id="power">--</strong></div>
+        <div class="metric"><span>Mode</span><strong id="modeLabel">Feedback</strong></div>
+        <div class="statePanel">
+          <h2>System State</h2>
+          <div class="stateRow"><span>Tracking</span><strong id="tracking">ACTIVE</strong></div>
+          <div class="stateRow"><span>Error</span><strong id="error">--</strong></div>
+          <div class="stateRow"><span>Convergence</span><strong id="convergence">--</strong></div>
+          <div class="stateRow"><span>Optimizer</span><strong id="optimizer" class="lock">LOCKED</strong></div>
+        </div>
+        <div class="hint" id="hint">Receiver follows a generated path. Enable Manual to drag it.</div>
+      </aside>
+      <section>
+        <div class="stage">
+          <canvas id="canvas"></canvas>
+          <div id="flash" class="flash"></div>
+        </div>
+      </section>
+    </main>
+    <script>
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const world = { xMin: -6, xMax: 6, yMin: -2, yMax: 10 };
+      const colors = [
+        [8, 19, 35],
+        [14, 78, 105],
+        [28, 139, 129],
+        [242, 178, 66],
+        [255, 246, 178],
+      ];
+      const settings = {
+        running: true,
+        manual: false,
+        mode: "adaptive",
+        noise: 0.06,
+        interference: 0.2,
+        obstacle: 0.55,
+        speed: 1,
+      };
+      const receiver = { x: 0, y: 6 };
+      const array = makeArray(8, 0.38);
+      const trail = [];
+      const system = { disturbance: 0, convergence: 0.92, lastPower: 0, flash: 0 };
+      let time = 0;
+      let last = performance.now();
+
+      const controls = {
+        run: document.getElementById("run"),
+        manual: document.getElementById("manual"),
+        reset: document.getElementById("reset"),
+        ideal: document.getElementById("ideal"),
+        adaptive: document.getElementById("adaptive"),
+        noise: document.getElementById("noise"),
+        interference: document.getElementById("interference"),
+        obstacle: document.getElementById("obstacle"),
+        speed: document.getElementById("speed"),
+        disturbance: document.getElementById("disturbance"),
+      };
+
+      controls.run.onclick = () => {
+        settings.running = !settings.running;
+        controls.run.textContent = settings.running ? "Pause" : "Play";
+      };
+      controls.manual.onclick = () => {
+        settings.manual = !settings.manual;
+        controls.manual.classList.toggle("active", settings.manual);
+        document.getElementById("hint").textContent = settings.manual
+          ? "Drag inside the field to steer the receiver."
+          : "Receiver follows a generated path. Enable Manual to drag it.";
+      };
+      controls.reset.onclick = () => {
+        time = 0;
+        system.disturbance = 0;
+        system.convergence = 0.92;
+        trail.length = 0;
+        settings.manual = false;
+        controls.manual.classList.remove("active");
+        document.getElementById("hint").textContent = "Receiver follows a generated path. Enable Manual to drag it.";
+      };
+      controls.ideal.onclick = () => setMode("ideal");
+      controls.adaptive.onclick = () => setMode("adaptive");
+      controls.disturbance.onclick = () => {
+        system.disturbance = 1;
+        system.convergence = 0.16;
+        system.flash = 1;
+        document.getElementById("flash").classList.add("on");
+        setTimeout(() => document.getElementById("flash").classList.remove("on"), 220);
+      };
+      ["noise", "interference", "obstacle"].forEach((key) => {
+        controls[key].oninput = (event) => {
+          settings[key] = Number(event.target.value);
+          document.getElementById(`${key}Value`).textContent = settings[key].toFixed(2);
+        };
+      });
+      controls.speed.oninput = (event) => {
+        settings.speed = Number(event.target.value);
+        document.getElementById("speedValue").textContent = `${settings.speed.toFixed(2)}x`;
+      };
+
+      canvas.addEventListener("pointerdown", moveReceiver);
+      canvas.addEventListener("pointermove", (event) => {
+        if (event.buttons === 1) moveReceiver(event);
+      });
+
+      requestAnimationFrame(loop);
+
+      function loop(now) {
+        const dt = Math.min(0.06, (now - last) / 1000);
+        last = now;
+        if (settings.running) time += dt * settings.speed;
+        system.disturbance *= 0.985;
+        const recoveryRate = settings.mode === "adaptive" ? 0.018 : 0.004;
+        system.convergence += (1 - system.disturbance - system.convergence) * recoveryRate;
+        system.convergence = Math.max(0.08, Math.min(0.98, system.convergence));
+        if (!settings.manual) {
+          receiver.x = 3.8 * Math.sin(time * 0.55) + 0.7 * Math.sin(time * 1.4);
+          receiver.y = 6.2 + 2.4 * Math.cos(time * 0.32);
+        }
+        trail.push({ x: receiver.x, y: receiver.y, power: system.lastPower });
+        if (trail.length > 70) trail.shift();
+        resize();
+        draw();
+        requestAnimationFrame(loop);
+      }
+
+      function draw() {
+        const phases = settings.mode === "ideal" ? idealPhases() : adaptivePhases();
+        const grid = 64;
+        const values = [];
+        let max = 0;
+        for (let row = 0; row < grid; row++) {
+          values[row] = [];
+          for (let col = 0; col < grid; col++) {
+            const p = screenToWorld((col / grid) * canvas.clientWidth, (row / grid) * canvas.clientHeight);
+            const value = powerAt(p, phases, true);
+            values[row][col] = value;
+            max = Math.max(max, value);
+          }
+        }
+        const cw = canvas.clientWidth / grid;
+        const ch = canvas.clientHeight / grid;
+        for (let row = 0; row < grid; row++) {
+          for (let col = 0; col < grid; col++) {
+            ctx.fillStyle = color(values[row][col] / (max || 1));
+            ctx.fillRect(col * cw, row * ch, Math.ceil(cw) + 1, Math.ceil(ch) + 1);
+          }
+        }
+        drawGrid();
+        drawObstacles();
+        drawTrail();
+        drawArray(phases);
+        const received = powerAt(receiver, phases, false);
+        system.lastPower = received;
+        drawReceiver(received);
+        updateMetrics(received);
+      }
+
+      function makeArray(size, spacing) {
+        const points = [];
+        const start = -((size - 1) * spacing) / 2;
+        for (let y = 0; y < size; y++) {
+          for (let x = 0; x < size; x++) {
+            points.push({ x: start + x * spacing, y: (start + y * spacing) * 0.18 });
+          }
+        }
+        return points;
+      }
+
+      function idealPhases() {
+        return array.map((a) => -Math.PI * 2 * distance(a, receiver));
+      }
+
+      function adaptivePhases() {
+        return idealPhases().map((phase, index) => {
+          const correction = 1 - system.convergence;
+          const wobble = Math.sin(time * 1.7 + index * 0.41) * settings.noise * 1.6;
+          const shock = system.disturbance * Math.sin(index * 2.41 + time * 7.2) * 1.8;
+          const obstacleBias = obstacleCrosses(array[index], receiver) ? settings.obstacle * Math.sin(index * 0.9 + time) * 0.35 : 0;
+          return phase + wobble + obstacleBias * correction + shock;
+        });
+      }
+
+      function powerAt(point, phases, includeNoise) {
+        let real = 0;
+        let imag = 0;
+        array.forEach((a, index) => {
+          const d = distance(a, point) + 0.08;
+          const loss = obstacleCrosses(a, point) ? Math.max(0.03, 1 - settings.obstacle) : 1;
+          const angle = Math.PI * 2 * d + phases[index];
+          real += (loss * Math.cos(angle)) / d;
+          imag += (loss * Math.sin(angle)) / d;
+        });
+        const envelope = beamEnvelope(point);
+        real *= envelope;
+        imag *= envelope;
+        const interference = settings.interference / (distance(point, { x: -5, y: 8.5 }) + 0.5);
+        real += interference * Math.cos(time + point.x);
+        imag += interference * Math.sin(time + point.y);
+        if (includeNoise) {
+          const scatter = 1 + system.disturbance * 5;
+          real += (Math.sin(point.x * 19.1 + time * 5.3) + Math.sin(point.y * 14.7)) * settings.noise * scatter;
+          imag += Math.cos(point.y * 17.4 - time * 4.8) * settings.noise * scatter;
+        }
+        return real * real + imag * imag;
+      }
+
+      function beamEnvelope(point) {
+        const origin = { x: 0, y: 0 };
+        const targetAngle = Math.atan2(receiver.y - origin.y, receiver.x - origin.x);
+        const pointAngle = Math.atan2(point.y - origin.y, point.x - origin.x);
+        const diff = Math.atan2(Math.sin(pointAngle - targetAngle), Math.cos(pointAngle - targetAngle));
+        const locked = settings.mode === "adaptive" ? system.convergence : 0.72;
+        const sharpness = 0.11 + (1 - locked) * 0.18 + system.disturbance * 0.3;
+        const main = Math.exp(-(diff * diff) / (sharpness * sharpness));
+        const side = Math.pow(Math.sin(diff * 18), 2) * Math.exp(-Math.abs(diff) * 4.2) * 0.24;
+        const floor = 0.09 + system.disturbance * 0.45;
+        return floor + main * (1.8 + locked * 2.7) + side;
+      }
+
+      function obstacleCrosses(start, end) {
+        return obstacles().some((o) => {
+          for (let i = 0; i <= 14; i++) {
+            const t = i / 14;
+            const x = start.x + (end.x - start.x) * t;
+            const y = start.y + (end.y - start.y) * t;
+            if (x >= o.x && x <= o.x + o.w && y >= o.y && y <= o.y + o.h) return true;
+          }
+          return false;
+        });
+      }
+
+      function obstacles() {
+        return [
+          { x: -4.2, y: 2.7, w: 2.1, h: 1.1 },
+          { x: 1.45, y: 4.15, w: 1.55, h: 2.25 },
+          { x: -0.85, y: 7.35, w: 2.4, h: 0.85 },
+        ];
+      }
+
+      function drawGrid() {
+        ctx.strokeStyle = "rgba(238,247,255,0.08)";
+        for (let x = 0; x <= canvas.clientWidth; x += canvas.clientWidth / 12) {
+          line(x, 0, x, canvas.clientHeight);
+        }
+        for (let y = 0; y <= canvas.clientHeight; y += canvas.clientHeight / 12) {
+          line(0, y, canvas.clientWidth, y);
+        }
+      }
+
+      function drawObstacles() {
+        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        ctx.strokeStyle = "rgba(255,255,255,0.46)";
+        obstacles().forEach((o) => {
+          const a = worldToScreen({ x: o.x, y: o.y + o.h });
+          const b = worldToScreen({ x: o.x + o.w, y: o.y });
+          ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+          ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+        });
+      }
+
+      function drawArray(phases) {
+        array.forEach((a, index) => {
+          const p = worldToScreen(a);
+          const wrapped = ((phases[index] % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+          const hue = 170 + (wrapped / (Math.PI * 2)) * 180;
+          ctx.fillStyle = `hsl(${hue}, 85%, 62%)`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 4.8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(255,255,255,0.85)";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x + Math.cos(wrapped) * 10, p.y + Math.sin(wrapped) * 10);
+          ctx.stroke();
+        });
+      }
+
+      function drawTrail() {
+        trail.forEach((point, index) => {
+          const p = worldToScreen(point);
+          const alpha = index / trail.length;
+          ctx.fillStyle = `rgba(255, 79, 123, ${alpha * 0.24})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 2 + alpha * 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      function drawReceiver(received) {
+        const p = worldToScreen(receiver);
+        const pulse = 18 + Math.min(26, Math.log10(received + 1) * 8) + Math.sin(time * 8) * 2;
+        ctx.fillStyle = "rgba(255,79,123,0.16)";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, pulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.85)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 14, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = "#ff4f7b";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.font = "12px Inter, system-ui, sans-serif";
+        ctx.fillText(`P = ${received.toFixed(1)}`, p.x + 17, p.y - 14);
+      }
+
+      function moveReceiver(event) {
+        if (!settings.manual) return;
+        const rect = canvas.getBoundingClientRect();
+        const point = screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
+        receiver.x = point.x;
+        receiver.y = point.y;
+      }
+
+      function setMode(mode) {
+        settings.mode = mode;
+        controls.ideal.classList.toggle("active", mode === "ideal");
+        controls.adaptive.classList.toggle("active", mode === "adaptive");
+        document.getElementById("modeLabel").textContent = mode === "ideal" ? "Analytical" : "Feedback";
+      }
+
+      function updateMetrics(received) {
+        const error = Math.max(2, Math.round((1 - system.convergence) * 100 + system.disturbance * 35));
+        const optimizer = document.getElementById("optimizer");
+        let label = "LOCKED";
+        let className = "lock";
+        if (system.disturbance > 0.18) {
+          label = "REFOCUSING";
+          className = "break";
+        } else if (system.convergence < 0.84) {
+          label = "OPTIMIZING";
+          className = "search";
+        }
+
+        document.getElementById("power").textContent = received.toFixed(4);
+        document.getElementById("tracking").textContent = settings.running ? "ACTIVE" : "HOLD";
+        document.getElementById("error").textContent = `${error}%`;
+        document.getElementById("convergence").textContent = system.convergence.toFixed(2);
+        optimizer.textContent = label;
+        optimizer.className = className;
+
+        const rp = worldToScreen(receiver);
+        const flash = document.getElementById("flash");
+        flash.style.setProperty("--rx", `${rp.x}px`);
+        flash.style.setProperty("--ry", `${rp.y}px`);
+      }
+
+      function resize() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        if (canvas.width !== Math.floor(rect.width * dpr) || canvas.height !== Math.floor(rect.height * dpr)) {
+          canvas.width = Math.floor(rect.width * dpr);
+          canvas.height = Math.floor(rect.height * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+      }
+
+      function worldToScreen(point) {
+        return {
+          x: ((point.x - world.xMin) / (world.xMax - world.xMin)) * canvas.clientWidth,
+          y: canvas.clientHeight - ((point.y - world.yMin) / (world.yMax - world.yMin)) * canvas.clientHeight,
+        };
+      }
+
+      function screenToWorld(x, y) {
+        return {
+          x: world.xMin + (x / canvas.clientWidth) * (world.xMax - world.xMin),
+          y: world.yMin + ((canvas.clientHeight - y) / canvas.clientHeight) * (world.yMax - world.yMin),
+        };
+      }
+
+      function distance(a, b) {
+        return Math.hypot(a.x - b.x, a.y - b.y);
+      }
+
+      function line(x1, y1, x2, y2) {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+
+      function color(value) {
+        const scaled = Math.max(0, Math.min(1, value)) * (colors.length - 1);
+        const i = Math.floor(scaled);
+        const j = Math.min(i + 1, colors.length - 1);
+        const t = scaled - i;
+        const rgb = colors[i].map((c, channel) => Math.round(c + (colors[j][channel] - c) * t));
+        return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+      }
+    </script>
+  </body>
+</html>
