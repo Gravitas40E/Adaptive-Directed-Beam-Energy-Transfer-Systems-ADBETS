@@ -11,6 +11,8 @@ Interactive phased-array beamforming simulator for focusing transmitted energy o
 - Adaptive phase optimization under noise, interference, and obstacles
 - Real-time heatmap visualization with manual receiver control
 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
 <img width="1892" height="904" alt="image" src="https://github.com/user-attachments/assets/dd5ed57a-80e7-43ce-9ba2-4fc10b17b3ca" />
 Stable beam lock with high convergence under near line-of-sight conditions.
 
@@ -18,6 +20,8 @@ Stable beam lock with high convergence under near line-of-sight conditions.
 
 <img width="1890" height="889" alt="image" src="https://github.com/user-attachments/assets/6146cf01-8baa-47aa-8955-a019a2dad6bf" />
 Degraded beamforming under disturbance with active adaptive recovery.
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 ## Project Layout
 
